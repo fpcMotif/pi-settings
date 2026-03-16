@@ -21,6 +21,9 @@ pi install npm:pi-mcp-adapter
 pi install npm:glimpseui
 pi install git:github.com/HazAT/pi-parallel
 
+printf '\n-> Priming DeepWiki MCP metadata cache\n'
+pi -p "/mcp reconnect deepwiki" || true
+
 printf '\n-> Installing parallel CLI\n'
 npm install -g parallel-web-cli
 
