@@ -1,0 +1,27 @@
+plan-build-review:
+  description: "Plan, implement, and review — the standard development cycle"
+  steps:
+    - agent: planner
+      prompt: "Plan the implementation for: $INPUT"
+    - agent: builder
+      prompt: "Implement the following plan:\n\n$INPUT"
+    - agent: reviewer
+      prompt: "Review this implementation for bugs, style, and correctness:\n\n$INPUT"
+
+plan-build:
+  description: "Plan then build — fast two-step without review"
+  steps:
+    - agent: planner
+      prompt: "Plan the implementation for: $INPUT"
+    - agent: builder
+      prompt: "Based on this plan, implement:\n\n$INPUT"
+
+scout-flow:
+  description: "Triple-scout deep recon — explore, validate, verify"
+  steps:
+    - agent: scout
+      prompt: "Explore the codebase and investigate: $INPUT"
+    - agent: scout
+      prompt: "Validate and cross-check:\n\n$INPUT\n\nOriginal: $ORIGINAL"
+    - agent: scout
+      prompt: "Final review. Verify accuracy:\n\n$INPUT\n\nOriginal: $ORIGINAL"

@@ -1,0 +1,16 @@
+{
+  "lastChangelogVersion": "0.58.3",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.4",
+  "defaultThinkingLevel": "xhigh",
+  "shellCommandPrefix": "export PATH='/usr/bin:/bin:/usr/sbin:/sbin:$HOME/.local/bin:$HOME/.bun/bin:/opt/zerobrew/prefix/bin:$(npm config get prefix)/bin:$PATH'; eval \"$(zoxide init bash --cmd cd)\"",
+  "theme": "synthwave",
+  "packages": [
+    "https://github.com/emilkowalski/skill",
+    "npm:pi-design-deck",
+    "npm:pi-subagents",
+    "npm:pi-mcp-adapter",
+    "npm:glimpseui",
+    "git:github.com/HazAT/pi-parallel"
+  ]
+}

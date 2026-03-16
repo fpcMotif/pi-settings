@@ -1,0 +1,86 @@
+bashToolPatterns:
+  - pattern: '\brm\s+(-[^\s]*)*-[rRf]'
+    reason: rm with recursive or force flags
+  - pattern: '\bsudo\s+rm\b'
+    reason: sudo rm
+  - pattern: '\bchmod\s+(-[^\s]+\s+)*777\b'
+    reason: chmod 777 (world writable)
+  - pattern: '\bgit\s+reset\s+--hard\b'
+    reason: git reset --hard (use --soft or stash)
+  - pattern: '\bgit\s+clean\s+(-[^\s]*)*-[fd]'
+    reason: git clean with force/directory flags
+  - pattern: '\bgit\s+push\s+.*--force(?!-with-lease)'
+    reason: git push --force (use --force-with-lease)
+  - pattern: '\bgit\s+push\s+(-[^\s]*)*-f\b'
+    reason: git push -f (use --force-with-lease)
+  - pattern: '\bgit\s+stash\s+clear\b'
+    reason: git stash clear (deletes ALL stashes)
+  - pattern: '\bgit\s+filter-branch\b'
+    reason: git filter-branch (rewrites entire history)
+  - pattern: '\bgit\s+checkout\s+--\s*\.'
+    reason: Discards all uncommitted changes
+    ask: true
+  - pattern: '\bgit\s+restore\s+\.'
+    reason: Discards all uncommitted changes
+    ask: true
+  - pattern: '\bgit\s+stash\s+drop\b'
+    reason: Permanently deletes a stash
+    ask: true
+  - pattern: '\bgit\s+branch\s+(-[^\s]*)*-D'
+    reason: Force deletes branch (even if unmerged)
+    ask: true
+  - pattern: '\bgit\s+push\s+\S+\s+--delete\b'
+    reason: Deletes remote branch
+    ask: true
+  - pattern: '\bmkfs\.'
+    reason: filesystem format command
+  - pattern: '\bdd\s+.*of=/dev/'
+    reason: dd writing to device
+  - pattern: '\bkill\s+-9\s+-1\b'
+    reason: kill all processes
+  - pattern: 'DELETE\s+FROM\s+\w+\s*;'
+    reason: DELETE without WHERE clause
+  - pattern: '\bTRUNCATE\s+TABLE\b'
+    reason: TRUNCATE TABLE
+  - pattern: '\bDROP\s+TABLE\b'
+    reason: DROP TABLE
+  - pattern: '\bDROP\s+DATABASE\b'
+    reason: DROP DATABASE
+
+zeroAccessPaths:
+  - ".env"
+  - ".env.local"
+  - ".env.production"
+  - "~/.ssh/"
+  - "~/.gnupg/"
+  - "~/.aws/"
+  - "~/.config/gcloud/"
+  - "*.pem"
+  - "*.key"
+  - "*.p12"
+  - "*.tfstate"
+  - "serviceAccountKey.json"
+  - "~/.git-credentials"
+  - "dump.sql"
+  - "backup.sql"
+
+readOnlyPaths:
+  - "package-lock.json"
+  - "yarn.lock"
+  - "bun.lock"
+  - "bun.lockb"
+  - "Cargo.lock"
+  - "go.sum"
+  - dist/
+  - build/
+  - node_modules/
+  - target/
+
+noDeletePaths:
+  - .git/
+  - .gitignore
+  - .github/
+  - README.md
+  - LICENSE
+  - CLAUDE.md
+  - Dockerfile

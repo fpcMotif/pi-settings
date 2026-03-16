@@ -1,0 +1,16 @@
+# Local state
+auth.json
+cache/
+sessions/
+git/
+node_modules/
+npm/
+.pi/
+
+# Backups / machine-local files
+settings.json.bak
+pre-setup-backup-*.tar.gz
+.DS_Store
+
+# Optional generated artifacts
+*.log
