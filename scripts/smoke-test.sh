@@ -34,6 +34,18 @@ version_of() {
   "$@" 2>/dev/null | /usr/bin/head -n 1
 }
 
+ingest_lines() {
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    printf '%s\n' "$line"
+    case "$line" in
+      PASS\ *) pass_count=$((pass_count + 1)) ;;
+      WARN\ *) warn_count=$((warn_count + 1)) ;;
+      FAIL\ *) fail_count=$((fail_count + 1)) ;;
+    esac
+  done
+}
+
 printf '== Pi power stack smoke test ==\n\n'
 
 for file in "$SETTINGS_FILE" "$AGENTS_FILE" "$MCP_FILE"; do
@@ -94,7 +106,8 @@ else
 fi
 
 printf '\n== Config checks ==\n'
-/usr/bin/python3 - <<'PY'
+config_output="$(mktemp)"
+/usr/bin/python3 - <<'PY' > "$config_output"
 import json, pathlib, sys
 settings = pathlib.Path.home() / '.pi' / 'agent' / 'settings.json'
 mcp = pathlib.Path.home() / '.pi' / 'agent' / 'mcp.json'
@@ -138,9 +151,12 @@ try:
 except Exception as exc:
     print(f'FAIL  Could not parse mcp.json: {exc}')
 PY
+ingest_lines < "$config_output"
+rm -f "$config_output"
 
 printf '\n== DeepWiki MCP handshake ==\n'
-/usr/bin/python3 - <<'PY'
+deepwiki_output="$(mktemp)"
+/usr/bin/python3 - <<'PY' > "$deepwiki_output"
 import json, urllib.request
 url = 'https://mcp.deepwiki.com/mcp'
 body = {
@@ -169,6 +185,8 @@ try:
 except Exception as exc:
     print(f'FAIL  DeepWiki MCP handshake failed: {exc}')
 PY
+ingest_lines < "$deepwiki_output"
+rm -f "$deepwiki_output"
 
 printf '\n== Installed Pi packages ==\n'
 if have pi; then
