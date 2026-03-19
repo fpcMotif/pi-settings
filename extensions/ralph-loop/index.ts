@@ -1,6 +1,13 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
-import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from "node:fs";
+import {
+  readFileSync,
+  writeFileSync,
+  existsSync,
+  mkdirSync,
+  unlinkSync,
+} from "node:fs";
+import * as fs from "node:fs/promises";
 import { join } from "node:path";
 
 const STATE_FILENAME = "ralph-loop.state.json";
@@ -36,7 +43,11 @@ function readState(cwd: string): RalphState | null {
   if (!existsSync(p)) return null;
   try {
     const state = JSON.parse(readFileSync(p, "utf-8")) as RalphState;
-    if (!state.active || typeof state.iteration !== "number" || typeof state.prompt !== "string") {
+    if (
+      !state.active ||
+      typeof state.iteration !== "number" ||
+      typeof state.prompt !== "string"
+    ) {
       return null;
     }
     return state;
@@ -56,7 +67,11 @@ function removeState(cwd: string): void {
   if (existsSync(m)) unlinkSync(m);
 }
 
-function parseArgs(argsStr: string): { prompt: string; maxIterations: number; completionPromise: string | null } {
+function parseArgs(argsStr: string): {
+  prompt: string;
+  maxIterations: number;
+  completionPromise: string | null;
+} {
   const tokens = argsStr.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? [];
   const promptParts: string[] = [];
   let maxIterations = 0;
@@ -67,13 +82,18 @@ function parseArgs(argsStr: string): { prompt: string; maxIterations: number; co
     const token = tokens[i];
     if (token === "--max-iterations") {
       i++;
-      if (i >= tokens.length) throw new Error("--max-iterations requires a number argument");
+      if (i >= tokens.length)
+        throw new Error("--max-iterations requires a number argument");
       const val = parseInt(tokens[i], 10);
-      if (isNaN(val) || val < 0) throw new Error(`--max-iterations must be a non-negative integer, got: ${tokens[i]}`);
+      if (isNaN(val) || val < 0)
+        throw new Error(
+          `--max-iterations must be a non-negative integer, got: ${tokens[i]}`,
+        );
       maxIterations = val;
     } else if (token === "--completion-promise") {
       i++;
-      if (i >= tokens.length) throw new Error("--completion-promise requires a text argument");
+      if (i >= tokens.length)
+        throw new Error("--completion-promise requires a text argument");
       completionPromise = tokens[i].replace(/^["']|["']$/g, "");
     } else {
       promptParts.push(token);
@@ -85,10 +105,10 @@ function parseArgs(argsStr: string): { prompt: string; maxIterations: number; co
   if (!prompt) {
     throw new Error(
       "No prompt provided.\n\n" +
-      "Usage:\n" +
-      '  /ralph-loop Build a REST API --completion-promise "DONE" --max-iterations 20\n' +
-      "  /ralph-loop Fix the auth bug --max-iterations 10\n" +
-      '  /ralph-loop --completion-promise "ALL TESTS PASS" Refactor the cache layer'
+        "Usage:\n" +
+        '  /ralph-loop Build a REST API --completion-promise "DONE" --max-iterations 20\n' +
+        "  /ralph-loop Fix the auth bug --max-iterations 10\n" +
+        '  /ralph-loop --completion-promise "ALL TESTS PASS" Refactor the cache layer',
     );
   }
 
@@ -114,7 +134,8 @@ export default function ralphLoop(pi: ExtensionAPI) {
       "Do NOT call this to escape the loop — only when the task is genuinely complete.",
     parameters: Type.Object({
       promise_text: Type.String({
-        description: "The exact completion promise text that was specified when the loop started",
+        description:
+          "The exact completion promise text that was specified when the loop started",
       }),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
@@ -127,27 +148,36 @@ export default function ralphLoop(pi: ExtensionAPI) {
       }
       if (!state.completionPromise) {
         return {
-          content: [{ type: "text" as const, text: "This Ralph loop has no completion promise set." }],
+          content: [
+            {
+              type: "text" as const,
+              text: "This Ralph loop has no completion promise set.",
+            },
+          ],
           details: {},
         };
       }
       const provided = params.promise_text.trim().replace(/\s+/g, " ");
       if (provided !== state.completionPromise) {
         return {
-          content: [{
-            type: "text" as const,
-            text: `Promise mismatch. Expected: "${state.completionPromise}", got: "${provided}". Loop continues.`,
-          }],
+          content: [
+            {
+              type: "text" as const,
+              text: `Promise mismatch. Expected: "${state.completionPromise}", got: "${provided}". Loop continues.`,
+            },
+          ],
           details: {},
         };
       }
       // Write marker for agent_end to pick up
       writeFileSync(markerPath(ctx.cwd), state.completionPromise, "utf-8");
       return {
-        content: [{
-          type: "text" as const,
-          text: `Promise "${state.completionPromise}" accepted. Ralph loop will stop after this turn.`,
-        }],
+        content: [
+          {
+            type: "text" as const,
+            text: `Promise "${state.completionPromise}" accepted. Ralph loop will stop after this turn.`,
+          },
+        ],
         details: {},
       };
     },
@@ -155,13 +185,14 @@ export default function ralphLoop(pi: ExtensionAPI) {
 
   // ── /ralph-loop command ──────────────────────────────────────────────
   pi.registerCommand("ralph-loop", {
-    description: "Start a Ralph Wiggum loop — iterative AI development with the same prompt",
+    description:
+      "Start a Ralph Wiggum loop — iterative AI development with the same prompt",
     handler: async (args, ctx) => {
       const existing = readState(ctx.cwd);
       if (existing) {
         ctx.ui.notify(
           `Ralph loop already active (iteration ${existing.iteration}). Run /cancel-ralph first.`,
-          "error"
+          "error",
         );
         return;
       }
@@ -169,7 +200,7 @@ export default function ralphLoop(pi: ExtensionAPI) {
       if (!args || !args.trim()) {
         ctx.ui.notify(
           'Usage: /ralph-loop <prompt> [--max-iterations N] [--completion-promise "TEXT"]',
-          "error"
+          "error",
         );
         return;
       }
@@ -194,7 +225,10 @@ export default function ralphLoop(pi: ExtensionAPI) {
       writeState(ctx.cwd, state);
 
       ctx.ui.notify("Ralph loop activated!", "success");
-      ctx.ui.setStatus("ralph-loop", `Ralph iter 1 | max: ${formatMax(state)} | promise: ${formatPromise(state)}`);
+      ctx.ui.setStatus(
+        "ralph-loop",
+        `Ralph iter 1 | max: ${formatMax(state)} | promise: ${formatPromise(state)}`,
+      );
 
       const lines = [
         "Ralph loop activated.",
@@ -213,19 +247,28 @@ export default function ralphLoop(pi: ExtensionAPI) {
           `  promise_text: "${state.completionPromise}"`,
           "",
           "ONLY call it when the statement is completely and unequivocally TRUE.",
-          "Do NOT call it to escape the loop."
+          "Do NOT call it to escape the loop.",
         );
       }
 
       if (state.maxIterations > 0 && !state.completionPromise) {
-        lines.push("", `The loop will automatically stop after ${state.maxIterations} iterations.`);
+        lines.push(
+          "",
+          `The loop will automatically stop after ${state.maxIterations} iterations.`,
+        );
       }
 
       if (state.maxIterations === 0 && !state.completionPromise) {
-        lines.push("", "WARNING: No completion promise or max-iterations set.", "This loop runs INDEFINITELY. Use /cancel-ralph to stop.");
+        lines.push(
+          "",
+          "WARNING: No completion promise or max-iterations set.",
+          "This loop runs INDEFINITELY. Use /cancel-ralph to stop.",
+        );
       }
 
-      pi.sendUserMessage(`${lines.join("\n")}\n\n---\n\nTASK:\n${state.prompt}`);
+      pi.sendUserMessage(
+        `${lines.join("\n")}\n\n---\n\nTASK:\n${state.prompt}`,
+      );
     },
   });
 
@@ -241,7 +284,10 @@ export default function ralphLoop(pi: ExtensionAPI) {
       const n = state.iteration;
       removeState(ctx.cwd);
       ctx.ui.setStatus("ralph-loop", "");
-      ctx.ui.notify(`Ralph loop cancelled after ${n} iteration${n !== 1 ? "s" : ""}.`, "success");
+      ctx.ui.notify(
+        `Ralph loop cancelled after ${n} iteration${n !== 1 ? "s" : ""}.`,
+        "success",
+      );
     },
   });
 
@@ -256,12 +302,12 @@ export default function ralphLoop(pi: ExtensionAPI) {
       }
       ctx.ui.notify(
         `Ralph loop active\n` +
-        `  Iteration: ${state.iteration}\n` +
-        `  Max: ${formatMax(state)}\n` +
-        `  Promise: ${formatPromise(state)}\n` +
-        `  Started: ${state.startedAt}\n` +
-        `  Prompt: ${state.prompt.slice(0, 80)}${state.prompt.length > 80 ? "..." : ""}`,
-        "info"
+          `  Iteration: ${state.iteration}\n` +
+          `  Max: ${formatMax(state)}\n` +
+          `  Promise: ${formatPromise(state)}\n` +
+          `  Started: ${state.startedAt}\n` +
+          `  Prompt: ${state.prompt.slice(0, 80)}${state.prompt.length > 80 ? "..." : ""}`,
+        "info",
       );
     },
   });
@@ -275,26 +321,30 @@ export default function ralphLoop(pi: ExtensionAPI) {
     if (state.maxIterations > 0 && state.iteration >= state.maxIterations) {
       removeState(ctx.cwd);
       ctx.ui.setStatus("ralph-loop", "");
-      ctx.ui.notify(`Ralph loop: Max iterations (${state.maxIterations}) reached. Stopped.`, "info");
+      ctx.ui.notify(
+        `Ralph loop: Max iterations (${state.maxIterations}) reached. Stopped.`,
+        "info",
+      );
       return;
     }
 
     // Check for promise marker (written by ralph_promise tool)
     if (state.completionPromise) {
       const mp = markerPath(ctx.cwd);
-      if (existsSync(mp)) {
-        try {
-          const detected = readFileSync(mp, "utf-8").trim();
-          unlinkSync(mp);
-          if (detected === state.completionPromise) {
-            removeState(ctx.cwd);
-            ctx.ui.setStatus("ralph-loop", "");
-            ctx.ui.notify(`Ralph loop complete! Promise fulfilled: "${state.completionPromise}"`, "success");
-            return;
-          }
-        } catch {
-          // Marker read failed — continue the loop
+      try {
+        const detected = (await fs.readFile(mp, "utf-8")).trim();
+        await fs.unlink(mp);
+        if (detected === state.completionPromise) {
+          removeState(ctx.cwd);
+          ctx.ui.setStatus("ralph-loop", "");
+          ctx.ui.notify(
+            `Ralph loop complete! Promise fulfilled: "${state.completionPromise}"`,
+            "success",
+          );
+          return;
         }
+      } catch (err: any) {
+        if (err.code !== "ENOENT") throw err;
       }
     }
 
@@ -303,7 +353,10 @@ export default function ralphLoop(pi: ExtensionAPI) {
     state.iteration = next;
     writeState(ctx.cwd, state);
 
-    ctx.ui.setStatus("ralph-loop", `Ralph iter ${next} | max: ${formatMax(state)}`);
+    ctx.ui.setStatus(
+      "ralph-loop",
+      `Ralph iter ${next} | max: ${formatMax(state)}`,
+    );
 
     let msg = `Ralph iteration ${next}`;
     if (state.completionPromise) {
@@ -322,7 +375,7 @@ export default function ralphLoop(pi: ExtensionAPI) {
     if (state) {
       ctx.ui.notify(
         `Ralph loop was active (iteration ${state.iteration}). State preserved — resume with pi -c.`,
-        "info"
+        "info",
       );
     }
   });
@@ -331,7 +384,10 @@ export default function ralphLoop(pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
     const state = readState(ctx.cwd);
     if (state) {
-      ctx.ui.setStatus("ralph-loop", `Ralph iter ${state.iteration} | max: ${formatMax(state)} (resumed)`);
+      ctx.ui.setStatus(
+        "ralph-loop",
+        `Ralph iter ${state.iteration} | max: ${formatMax(state)} (resumed)`,
+      );
     }
   });
 }
