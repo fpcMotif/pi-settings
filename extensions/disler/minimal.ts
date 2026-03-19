@@ -8,6 +8,7 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import { applyExtensionDefaults } from "./themeMap.ts";
+import { renderProgressBar } from "./utils.ts";
 
 export default function (pi: ExtensionAPI) {
 	pi.on("session_start", async (_event, ctx) => {
@@ -18,12 +19,10 @@ export default function (pi: ExtensionAPI) {
 			render(width: number): string[] {
 				const model = ctx.model?.id || "no-model";
 				const usage = ctx.getContextUsage();
-				const pct = (usage && usage.percent !== null) ? usage.percent : 0;
-				const filled = Math.round(pct / 10);
-				const bar = "#".repeat(filled) + "-".repeat(10 - filled);
+				const bar = renderProgressBar(usage?.percent ?? 0);
 
 				const left = theme.fg("dim", ` ${model}`);
-				const right = theme.fg("dim", `[${bar}] ${Math.round(pct)}% `);
+				const right = theme.fg("dim", `${bar} `);
 				const pad = " ".repeat(Math.max(1, width - visibleWidth(left) - visibleWidth(right)));
 
 				return [truncateToWidth(left + pad + right, width)];
