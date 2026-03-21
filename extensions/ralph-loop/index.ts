@@ -1,6 +1,7 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
-import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
+import { readFile, writeFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
 
 const STATE_FILENAME = "ralph-loop.state.json";
@@ -31,11 +32,11 @@ function markerPath(cwd: string): string {
   return join(stateDir(cwd), PROMISE_MARKER);
 }
 
-function readState(cwd: string): RalphState | null {
+async function readState(cwd: string): Promise<RalphState | null> {
   const p = statePath(cwd);
   if (!existsSync(p)) return null;
   try {
-    const state = JSON.parse(readFileSync(p, "utf-8")) as RalphState;
+    const state = JSON.parse(await readFile(p, "utf-8")) as RalphState;
     if (!state.active || typeof state.iteration !== "number" || typeof state.prompt !== "string") {
       return null;
     }
@@ -45,15 +46,15 @@ function readState(cwd: string): RalphState | null {
   }
 }
 
-function writeState(cwd: string, state: RalphState): void {
-  writeFileSync(statePath(cwd), JSON.stringify(state, null, 2), "utf-8");
+async function writeState(cwd: string, state: RalphState): Promise<void> {
+  await writeFile(statePath(cwd), JSON.stringify(state, null, 2), "utf-8");
 }
 
-function removeState(cwd: string): void {
+async function removeState(cwd: string): Promise<void> {
   const p = statePath(cwd);
-  if (existsSync(p)) unlinkSync(p);
+  if (existsSync(p)) await unlink(p);
   const m = markerPath(cwd);
-  if (existsSync(m)) unlinkSync(m);
+  if (existsSync(m)) await unlink(m);
 }
 
 function parseArgs(argsStr: string): { prompt: string; maxIterations: number; completionPromise: string | null } {
@@ -118,7 +119,7 @@ export default function ralphLoop(pi: ExtensionAPI) {
       }),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const state = readState(ctx.cwd);
+      const state = await readState(ctx.cwd);
       if (!state) {
         return {
           content: [{ type: "text" as const, text: "No active Ralph loop." }],
@@ -142,7 +143,7 @@ export default function ralphLoop(pi: ExtensionAPI) {
         };
       }
       // Write marker for agent_end to pick up
-      writeFileSync(markerPath(ctx.cwd), state.completionPromise, "utf-8");
+      await writeFile(markerPath(ctx.cwd), state.completionPromise, "utf-8");
       return {
         content: [{
           type: "text" as const,
@@ -157,7 +158,7 @@ export default function ralphLoop(pi: ExtensionAPI) {
   pi.registerCommand("ralph-loop", {
     description: "Start a Ralph Wiggum loop — iterative AI development with the same prompt",
     handler: async (args, ctx) => {
-      const existing = readState(ctx.cwd);
+      const existing = await readState(ctx.cwd);
       if (existing) {
         ctx.ui.notify(
           `Ralph loop already active (iteration ${existing.iteration}). Run /cancel-ralph first.`,
@@ -191,7 +192,7 @@ export default function ralphLoop(pi: ExtensionAPI) {
         startedAt: new Date().toISOString(),
       };
 
-      writeState(ctx.cwd, state);
+      await writeState(ctx.cwd, state);
 
       ctx.ui.notify("Ralph loop activated!", "success");
       ctx.ui.setStatus("ralph-loop", `Ralph iter 1 | max: ${formatMax(state)} | promise: ${formatPromise(state)}`);
@@ -233,13 +234,13 @@ export default function ralphLoop(pi: ExtensionAPI) {
   pi.registerCommand("cancel-ralph", {
     description: "Cancel an active Ralph loop",
     handler: async (_args, ctx) => {
-      const state = readState(ctx.cwd);
+      const state = await readState(ctx.cwd);
       if (!state) {
         ctx.ui.notify("No active Ralph loop to cancel.", "info");
         return;
       }
       const n = state.iteration;
-      removeState(ctx.cwd);
+      await removeState(ctx.cwd);
       ctx.ui.setStatus("ralph-loop", "");
       ctx.ui.notify(`Ralph loop cancelled after ${n} iteration${n !== 1 ? "s" : ""}.`, "success");
     },
@@ -249,7 +250,7 @@ export default function ralphLoop(pi: ExtensionAPI) {
   pi.registerCommand("ralph-status", {
     description: "Show Ralph loop status",
     handler: async (_args, ctx) => {
-      const state = readState(ctx.cwd);
+      const state = await readState(ctx.cwd);
       if (!state) {
         ctx.ui.notify("No active Ralph loop.", "info");
         return;
@@ -268,12 +269,12 @@ export default function ralphLoop(pi: ExtensionAPI) {
 
   // ── agent_end — the core loop mechanism ──────────────────────────────
   pi.on("agent_end", async (_event, ctx) => {
-    const state = readState(ctx.cwd);
+    const state = await readState(ctx.cwd);
     if (!state) return;
 
     // Check max iterations
     if (state.maxIterations > 0 && state.iteration >= state.maxIterations) {
-      removeState(ctx.cwd);
+      await removeState(ctx.cwd);
       ctx.ui.setStatus("ralph-loop", "");
       ctx.ui.notify(`Ralph loop: Max iterations (${state.maxIterations}) reached. Stopped.`, "info");
       return;
@@ -284,10 +285,10 @@ export default function ralphLoop(pi: ExtensionAPI) {
       const mp = markerPath(ctx.cwd);
       if (existsSync(mp)) {
         try {
-          const detected = readFileSync(mp, "utf-8").trim();
-          unlinkSync(mp);
+          const detected = (await readFile(mp, "utf-8")).trim();
+          await unlink(mp);
           if (detected === state.completionPromise) {
-            removeState(ctx.cwd);
+            await removeState(ctx.cwd);
             ctx.ui.setStatus("ralph-loop", "");
             ctx.ui.notify(`Ralph loop complete! Promise fulfilled: "${state.completionPromise}"`, "success");
             return;
@@ -301,7 +302,7 @@ export default function ralphLoop(pi: ExtensionAPI) {
     // Continue: increment iteration, feed same prompt
     const next = state.iteration + 1;
     state.iteration = next;
-    writeState(ctx.cwd, state);
+    await writeState(ctx.cwd, state);
 
     ctx.ui.setStatus("ralph-loop", `Ralph iter ${next} | max: ${formatMax(state)}`);
 
@@ -318,7 +319,7 @@ export default function ralphLoop(pi: ExtensionAPI) {
 
   // ── session_shutdown — warn about active loop ────────────────────────
   pi.on("session_shutdown", async (_event, ctx) => {
-    const state = readState(ctx.cwd);
+    const state = await readState(ctx.cwd);
     if (state) {
       ctx.ui.notify(
         `Ralph loop was active (iteration ${state.iteration}). State preserved — resume with pi -c.`,
@@ -329,7 +330,7 @@ export default function ralphLoop(pi: ExtensionAPI) {
 
   // ── session_start — restore status bar if loop was active ────────────
   pi.on("session_start", async (_event, ctx) => {
-    const state = readState(ctx.cwd);
+    const state = await readState(ctx.cwd);
     if (state) {
       ctx.ui.setStatus("ralph-loop", `Ralph iter ${state.iteration} | max: ${formatMax(state)} (resumed)`);
     }
