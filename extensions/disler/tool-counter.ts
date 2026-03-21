@@ -11,6 +11,7 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import { basename } from "node:path";
 import { applyExtensionDefaults } from "./themeMap.ts";
+import { renderProgressBar } from "./utils.ts";
 
 export default function (pi: ExtensionAPI) {
 	const counts: Record<string, number> = {};
@@ -47,11 +48,9 @@ export default function (pi: ExtensionAPI) {
 					// Line 1: model + context | tokens + cost
 					const model = ctx.model?.id || "no-model";
 					const usage = ctx.getContextUsage();
-					const pct = (usage && usage.percent !== null) ? usage.percent : 0;
-					const filled = Math.round(pct / 10);
-					const bar = "#".repeat(filled) + "-".repeat(10 - filled);
+					const bar = renderProgressBar(usage?.percent ?? 0);
 
-					const l1Left = theme.fg("dim", ` ${model} [${bar}] ${Math.round(pct)}%`);
+					const l1Left = theme.fg("dim", ` ${model} ${bar}`);
 					const l1Right = theme.fg("dim", `↓${fmt(tokIn)} ↑${fmt(tokOut)} $${cost.toFixed(4)} `);
 					const l1Pad = " ".repeat(Math.max(1, width - visibleWidth(l1Left) - visibleWidth(l1Right)));
 
