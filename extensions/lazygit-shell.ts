@@ -24,26 +24,48 @@ function getArgs(command: string): string[] {
 	const args: string[] = [];
 	let current = "";
 	let inQuotes: string | null = null;
+	let escaped = false;
+	let hasCurrent = false;
+
 	for (let i = 0; i < argsString.length; i++) {
 		const char = argsString[i];
+
+		if (escaped) {
+			current += char;
+			escaped = false;
+			hasCurrent = true;
+			continue;
+		}
+
+		if (char === "\\") {
+			escaped = true;
+			continue;
+		}
+
 		if (inQuotes) {
 			if (char === inQuotes) {
 				inQuotes = null;
+				hasCurrent = true;
 			} else {
 				current += char;
+				hasCurrent = true;
 			}
 		} else if (char === '"' || char === "'") {
 			inQuotes = char;
+			hasCurrent = true;
 		} else if (/\s/.test(char)) {
-			if (current.length > 0) {
+			if (hasCurrent) {
 				args.push(current);
 				current = "";
+				hasCurrent = false;
 			}
 		} else {
 			current += char;
+			hasCurrent = true;
 		}
 	}
-	if (current.length > 0) {
+
+	if (hasCurrent) {
 		args.push(current);
 	}
 	return args;
