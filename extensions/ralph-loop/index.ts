@@ -56,7 +56,7 @@ function removeState(cwd: string): void {
   if (existsSync(m)) unlinkSync(m);
 }
 
-function parseArgs(argsStr: string): { prompt: string; maxIterations: number; completionPromise: string | null } {
+export function parseArgs(argsStr: string): { prompt: string; maxIterations: number; completionPromise: string | null } {
   const tokens = argsStr.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? [];
   const promptParts: string[] = [];
   let maxIterations = 0;
