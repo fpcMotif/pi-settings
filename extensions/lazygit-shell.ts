@@ -1,6 +1,56 @@
 import { spawnSync } from "node:child_process";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
+
+export function parseArgs(command: string): string[] {
+	const args: string[] = [];
+	let current = "";
+	let inSingleQuote = false;
+	let inDoubleQuote = false;
+	let isEscaped = false;
+
+	for (let i = 0; i < command.length; i++) {
+		const char = command[i];
+
+		if (isEscaped) {
+			current += char;
+			isEscaped = false;
+			continue;
+		}
+
+		if (char === '\\' && !inSingleQuote) {
+			isEscaped = true;
+			continue;
+		}
+
+		if (char === "'" && !inDoubleQuote) {
+			inSingleQuote = !inSingleQuote;
+			continue;
+		}
+
+		if (char === '"' && !inSingleQuote) {
+			inDoubleQuote = !inDoubleQuote;
+			continue;
+		}
+
+		if (char === ' ' && !inSingleQuote && !inDoubleQuote) {
+			if (current.length > 0) {
+				args.push(current);
+				current = "";
+			}
+			continue;
+		}
+
+		current += char;
+	}
+
+	if (current.length > 0) {
+		args.push(current);
+	}
+
+	return args;
+}
+
 function isLazygitCommand(command: string): boolean {
 	const trimmed = command.trim();
 	return (
@@ -34,7 +84,7 @@ export default function lazygitShell(pi: ExtensionAPI) {
 		}
 
 		const command = normalizeCommand(event.command);
-		const shell = process.env.SHELL || "/bin/bash";
+		const args = parseArgs(command);
 		const env = {
 			...process.env,
 			PATH: `/opt/zerobrew/prefix/bin:${process.env.PATH ?? ""}`,
@@ -44,7 +94,7 @@ export default function lazygitShell(pi: ExtensionAPI) {
 			tui.stop();
 			process.stdout.write("\x1b[2J\x1b[H");
 
-			const result = spawnSync(shell, ["-lc", command], {
+			const result = spawnSync(args[0], args.slice(1), {
 				cwd: event.cwd,
 				stdio: "inherit",
 				env,
