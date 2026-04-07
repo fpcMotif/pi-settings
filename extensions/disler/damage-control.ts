@@ -72,7 +72,8 @@ export default function (pi: ExtensionAPI) {
 					noDeletePaths: loaded.noDeletePaths || [],
 				};
 				const source = rulesPath === projectRulesPath ? "project" : "global";
-				ctx.ui.notify(`🛡️ Damage-Control: Loaded ${rules.bashToolPatterns.length + rules.zeroAccessPaths.length + rules.readOnlyPaths.length + rules.noDeletePaths.length} rules (${source}).`);
+				const totalRules = rules.bashToolPatterns.length + rules.zeroAccessPaths.length + rules.readOnlyPaths.length + rules.noDeletePaths.length;
+				ctx.ui.notify(`🛡️ Damage-Control: Loaded ${totalRules} rules (${source}).`);
 			} else {
 				ctx.ui.notify("🛡️ Damage-Control: No rules found. Create .pi/damage-control-rules.yaml");
 			}
@@ -80,7 +81,8 @@ export default function (pi: ExtensionAPI) {
 			ctx.ui.notify(`🛡️ Damage-Control: Failed to load rules: ${err instanceof Error ? err.message : String(err)}`);
 		}
 
-		ctx.ui.setStatus(`🛡️ DC Active: ${rules.bashToolPatterns.length + rules.zeroAccessPaths.length + rules.readOnlyPaths.length + rules.noDeletePaths.length} rules`);
+		const totalRules = rules.bashToolPatterns.length + rules.zeroAccessPaths.length + rules.readOnlyPaths.length + rules.noDeletePaths.length;
+		ctx.ui.setStatus(`🛡️ DC Active: ${totalRules} rules`);
 	});
 
 	pi.on("tool_call", async (event, ctx) => {
