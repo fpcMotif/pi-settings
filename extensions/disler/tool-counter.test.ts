@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach, spyOn } from "bun:test";
+import { describe, it, expect, mock, beforeEach } from "bun:test";
 import toolCounter from "./tool-counter.ts";
 
 describe("tool-counter", () => {
