@@ -1,6 +1,67 @@
 import { spawnSync } from "node:child_process";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
+export function tokenize(command: string): string[] {
+	const args: string[] = [];
+	let currentArg = "";
+	let inSingleQuote = false;
+	let inDoubleQuote = false;
+	let escaped = false;
+	let inToken = false;
+
+	for (let i = 0; i < command.length; i++) {
+		const char = command[i];
+
+		if (escaped) {
+			currentArg += char;
+			escaped = false;
+			inToken = true;
+		} else if (inSingleQuote) {
+			if (char === "'") {
+				inSingleQuote = false;
+			} else {
+				currentArg += char;
+			}
+			inToken = true;
+		} else if (inDoubleQuote) {
+			if (char === '"') {
+				inDoubleQuote = false;
+			} else if (char === '\\') {
+				escaped = true;
+			} else {
+				currentArg += char;
+			}
+			inToken = true;
+		} else {
+			if (char === '\\') {
+				escaped = true;
+				inToken = true;
+			} else if (char === "'") {
+				inSingleQuote = true;
+				inToken = true;
+			} else if (char === '"') {
+				inDoubleQuote = true;
+				inToken = true;
+			} else if (char === ' ' || char === '\t') {
+				if (inToken) {
+					args.push(currentArg);
+					currentArg = "";
+					inToken = false;
+				}
+			} else {
+				currentArg += char;
+				inToken = true;
+			}
+		}
+	}
+
+	if (inToken) {
+		args.push(currentArg);
+	}
+
+	return args;
+}
+
 function isLazygitCommand(command: string): boolean {
 	const trimmed = command.trim();
 	return (
@@ -9,13 +70,6 @@ function isLazygitCommand(command: string): boolean {
 		trimmed === "lg" ||
 		trimmed.startsWith("lg ")
 	);
-}
-
-function normalizeCommand(command: string): string {
-	const trimmed = command.trim();
-	if (trimmed === "lg") return "lazygit";
-	if (trimmed.startsWith("lg ")) return `lazygit ${trimmed.slice(3)}`;
-	return trimmed;
 }
 
 export default function lazygitShell(pi: ExtensionAPI) {
@@ -33,8 +87,14 @@ export default function lazygitShell(pi: ExtensionAPI) {
 			};
 		}
 
-		const command = normalizeCommand(event.command);
-		const shell = process.env.SHELL || "/bin/bash";
+		const args = tokenize(event.command);
+		if (args.length === 0) return;
+
+		const bin = args[0] === "lg" ? "lazygit" : args[0];
+		if (bin !== "lazygit") return; // just to be safe
+
+		const commandArgs = args.slice(1);
+
 		const env = {
 			...process.env,
 			PATH: `/opt/zerobrew/prefix/bin:${process.env.PATH ?? ""}`,
@@ -44,7 +104,7 @@ export default function lazygitShell(pi: ExtensionAPI) {
 			tui.stop();
 			process.stdout.write("\x1b[2J\x1b[H");
 
-			const result = spawnSync(shell, ["-lc", command], {
+			const result = spawnSync(bin, commandArgs, {
 				cwd: event.cwd,
 				stdio: "inherit",
 				env,
