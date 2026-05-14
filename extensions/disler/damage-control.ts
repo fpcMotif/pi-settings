@@ -17,6 +17,7 @@ interface Rule {
 	pattern: string;
 	reason: string;
 	ask?: boolean;
+	regex?: RegExp;
 }
 
 interface Rules {
@@ -65,8 +66,18 @@ export default function (pi: ExtensionAPI) {
 			if (rulesPath) {
 				const content = fs.readFileSync(rulesPath, "utf8");
 				const loaded = yamlParse(content) as Partial<Rules>;
+
+				const bashToolPatterns = loaded.bashToolPatterns || [];
+				for (const rule of bashToolPatterns) {
+					try {
+						rule.regex = new RegExp(rule.pattern);
+					} catch (e) {
+						ctx.ui.notify(`🛡️ Damage-Control: Invalid regex pattern '${rule.pattern}': ${e instanceof Error ? e.message : String(e)}`);
+					}
+				}
+
 				rules = {
-					bashToolPatterns: loaded.bashToolPatterns || [],
+					bashToolPatterns: bashToolPatterns,
 					zeroAccessPaths: loaded.zeroAccessPaths || [],
 					readOnlyPaths: loaded.readOnlyPaths || [],
 					noDeletePaths: loaded.noDeletePaths || [],
@@ -110,8 +121,8 @@ export default function (pi: ExtensionAPI) {
 			const command = event.input.command;
 
 			for (const rule of rules.bashToolPatterns) {
-				const regex = new RegExp(rule.pattern);
-				if (regex.test(command)) {
+				const regex = rule.regex;
+				if (regex && regex.test(command)) {
 					violationReason = rule.reason;
 					shouldAsk = !!rule.ask;
 					break;
