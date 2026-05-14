@@ -59,11 +59,23 @@ export default function (pi: ExtensionAPI) {
 		// Look for rules in: project .pi/ → global ~/.pi/agent/
 		const projectRulesPath = path.join(ctx.cwd, ".pi", "damage-control-rules.yaml");
 		const globalRulesPath = path.join(os.homedir(), ".pi", "agent", "damage-control-rules.yaml");
-		const rulesPath = fs.existsSync(projectRulesPath) ? projectRulesPath : fs.existsSync(globalRulesPath) ? globalRulesPath : null;
+
+		let rulesPath: string | null = null;
+		try {
+			await fs.promises.access(projectRulesPath, fs.constants.R_OK);
+			rulesPath = projectRulesPath;
+		} catch {
+			try {
+				await fs.promises.access(globalRulesPath, fs.constants.R_OK);
+				rulesPath = globalRulesPath;
+			} catch {
+				// Neither file exists or is readable
+			}
+		}
 
 		try {
 			if (rulesPath) {
-				const content = fs.readFileSync(rulesPath, "utf8");
+				const content = await fs.promises.readFile(rulesPath, "utf8");
 				const loaded = yamlParse(content) as Partial<Rules>;
 				rules = {
 					bashToolPatterns: loaded.bashToolPatterns || [],
