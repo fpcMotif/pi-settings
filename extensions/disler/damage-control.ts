@@ -53,6 +53,53 @@ export default function (pi: ExtensionAPI) {
 		return regex.test(targetPath) || regex.test(relativePath) || targetPath.includes(resolvedPattern) || relativePath.includes(resolvedPattern);
 	}
 
+
+	function validateBashCommand(command: string, rules: Rules): { violationReason: string | null, shouldAsk: boolean } {
+		let violationReason: string | null = null;
+		let shouldAsk = false;
+
+		for (const rule of rules.bashToolPatterns) {
+			const regex = new RegExp(rule.pattern);
+			if (regex.test(command)) {
+				violationReason = rule.reason;
+				shouldAsk = !!rule.ask;
+				break;
+			}
+		}
+
+		if (!violationReason) {
+			for (const zap of rules.zeroAccessPaths) {
+				if (command.includes(zap)) { return { violationReason: `Bash references zero-access path: ${zap}`, shouldAsk }; }
+			}
+		}
+		if (!violationReason) {
+			for (const rop of rules.readOnlyPaths) {
+				if (command.includes(rop) && (/[\s>|]/.test(command) || command.includes("rm") || command.includes("mv") || command.includes("sed"))) {
+					return { violationReason: `Bash may modify read-only path: ${rop}`, shouldAsk };
+				}
+			}
+		}
+		if (!violationReason) {
+			for (const ndp of rules.noDeletePaths) {
+				if (command.includes(ndp) && (command.includes("rm") || command.includes("mv"))) {
+					return { violationReason: `Bash attempts to delete protected path: ${ndp}`, shouldAsk };
+				}
+			}
+		}
+
+		return { violationReason, shouldAsk };
+	}
+
+	function validateWritePaths(inputPaths: string[], rules: Rules, cwd: string, resolvePath: (p: string, cwd: string) => string, isPathMatch: (t: string, p: string, c: string) => boolean): string | null {
+		for (const p of inputPaths) {
+			const resolved = resolvePath(p, cwd);
+			for (const rop of rules.readOnlyPaths) {
+				if (isPathMatch(resolved, rop, cwd)) { return `Modification of read-only path: ${rop}`; }
+			}
+		}
+		return null;
+	}
+
 	pi.on("session_start", async (_event, ctx) => {
 		applyExtensionDefaults(import.meta.url, ctx);
 
@@ -107,43 +154,11 @@ export default function (pi: ExtensionAPI) {
 		if (!violationReason) violationReason = checkPaths(inputPaths);
 
 		if (!violationReason && isToolCallEventType("bash", event)) {
-			const command = event.input.command;
-
-			for (const rule of rules.bashToolPatterns) {
-				const regex = new RegExp(rule.pattern);
-				if (regex.test(command)) {
-					violationReason = rule.reason;
-					shouldAsk = !!rule.ask;
-					break;
-				}
-			}
-
-			if (!violationReason) {
-				for (const zap of rules.zeroAccessPaths) {
-					if (command.includes(zap)) { violationReason = `Bash references zero-access path: ${zap}`; break; }
-				}
-			}
-			if (!violationReason) {
-				for (const rop of rules.readOnlyPaths) {
-					if (command.includes(rop) && (/[\s>|]/.test(command) || command.includes("rm") || command.includes("mv") || command.includes("sed"))) {
-						violationReason = `Bash may modify read-only path: ${rop}`; break;
-					}
-				}
-			}
-			if (!violationReason) {
-				for (const ndp of rules.noDeletePaths) {
-					if (command.includes(ndp) && (command.includes("rm") || command.includes("mv"))) {
-						violationReason = `Bash attempts to delete protected path: ${ndp}`; break;
-					}
-				}
-			}
+			const result = validateBashCommand(event.input.command, rules);
+			violationReason = result.violationReason;
+			shouldAsk = result.shouldAsk;
 		} else if (!violationReason && (isToolCallEventType("write", event) || isToolCallEventType("edit", event))) {
-			for (const p of inputPaths) {
-				const resolved = resolvePath(p, ctx.cwd);
-				for (const rop of rules.readOnlyPaths) {
-					if (isPathMatch(resolved, rop, ctx.cwd)) { violationReason = `Modification of read-only path: ${rop}`; break; }
-				}
-			}
+			violationReason = validateWritePaths(inputPaths, rules, ctx.cwd, resolvePath, isPathMatch);
 		}
 
 		if (violationReason) {
